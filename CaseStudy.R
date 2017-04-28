@@ -25,6 +25,7 @@ setdiff(rounds2$permalink1, companies$permalink1)
 
 #merge companies and rounds2
 master_frame <- inner_join(companies, rounds2, by = "permalink1")
+#master_frame_left <- left_join(companies, rounds2, by = "permalink1")
 
 # checking the number of NA values
 sum(is.na(master_frame$raised_amount_usd))
@@ -47,66 +48,43 @@ top9 <- head(arrange(top9, desc(Total_Sum)),9)
 #load the mapping file
 mapping <- read.csv("mapping.csv", header =  TRUE, stringsAsFactors = FALSE)
 
-master_frame[] <- lapply(master_frame, as.character)
+#master_frame[] <- lapply(master_frame, as.character)
 
-#String extract function
-primary_sector_extract <- function(p)
-{
-  if(str_detect(p$category_list, pattern = "\\Q|\\E") == TRUE)
-  {
-    primary_sector <- substr(p$category_list,1,
-           str_locate(pattern = "\\Q|\\E", p$category_list)-1)
-  } else {
-    primary_sector <- substr(p$category_list,1,nchar(p$category_list))
-  }
-  return(primary_sector)
-}
-#Extract the category List 
-for (i in 1:nrow(master_frame))
-{
-  mf <- master_frame[i,]
-  master_frame[i,"primary_sector"] <- primary_sector_extract(mf)
-}
+#Primary Sector extract
+primary_sector_list <- str_split(master_frame$category_list, pattern="\\|")
+primary_sector <- sapply(primary_sector_list, function(x) x[1][1])
+master_frame[,"primary_sector"] <- primary_sector
+
 #master_frame$primary_sector[is.na(master_frame$primary_sector)] <- master_frame$category_list[is.na(master_frame$primary_sector)]
 
 #Take a backup of the master frame
 mapping_bkp <- mapping
-
-#Clean the mapping data frame 0-> o
-mapping$category_list <- gsub("0","o", mapping$category_list)
-
-# o -> na
-mapping$category_list <- gsub("otive ", "native", mapping$category_list)
-
-mapping$category_list <- gsub("oge", "nage", mapping$category_list)
-mapping$category_list <- gsub("olytics", "nalytics", mapping$category_list)
-
-mapping$category_list <- gsub("ool", "onal", mapping$category_list)
-mapping$category_list <- gsub("ionc", "inanc", mapping$category_list)
-
-mapping$category_list <- gsub("once", "nance", mapping$category_list)
-mapping$category_list <- gsub("otu", "natu", mapping$category_list)
-
-mapping$category_list <- gsub("ono", "nano", mapping$category_list)
-mapping$category_list <- gsub("ovi", "navi", mapping$category_list)
-
-
-#to_lower
-mapping$category_list <- str_to_lower(mapping$category_list)
-
 #Backup of the master frame
 master_frame_bkp <- master_frame
+
+# 0 -> na
+mapping$category_list <- gsub("0", "na",mapping$category_list)
+mapping$category_list <- gsub("2.na", "2.0", mapping$category_list)
+
 #to_lower
 master_frame$primary_sector <- str_to_lower(master_frame$primary_sector)
+mapping$category_list <- str_to_lower(mapping$category_list)
 
 #Wide to long
 mapping_long <- gather(mapping, main_sector, nval, 2:10)
 mapping_long <- mapping_long[!(mapping_long$nval == 0), ]
 mapping_long <- mapping_long[,-3]
 
+mapping_long_bkp <- mapping_long
+
+missing_mappings <- read.xlsx("C:\\Users\\navma\\Desktop\\Naveen\\IIIT-B\\Course1 - Introduction to Data Management\\Case Study\\Mapping missing sectors.xlsx", 1)
+
+mapping_long <- rbind(mapping_long,missing_mappings)
+
+
 #merge the mapping and master frame on primary sector
-final_master <- merge(master_frame, mapping_long, by.x = "primary_sector", by.y = "category_list")
-final_master$raised_amount_usd <- as.numeric(final_master$raised_amount_usd)
+final_master <- merge(master_frame, mapping_long, by.x = "primary_sector", by.y = "category_list", all.x = TRUE)
+#final_master$raised_amount_usd <- as.numeric(final_master$raised_amount_usd)
 #Creating the data frames each of the 3 countries
 
 india_investment <- filter(final_master, country_code == "IND", funding_round_type == "venture")
@@ -127,10 +105,12 @@ gbr_invest_grp <- group_main_sector(gbr_investment)
 
 avg_raised_amt <- function(p)
 {
-   summarise(p, mean(raised_amount_usd), n())
+   country_main_sector <- summarise(p, mean(raised_amount_usd), n())
+   colnames(country_main_sector) <- c("main_sector","avg_raised_amt_usd","no. of investments")
+   country_main_sector <- subset(country_main_sector, avg_raised_amt_usd > 5000000 & avg_raised_amt_usd < 15000000)
+   return(country_main_sector)
 }
 
 india_main_sector <- avg_raised_amt(india_invest_grp)
 usa_main_sector <- avg_raised_amt(usa_invest_grp)
 gbr_main_sector <- avg_raised_amt(gbr_invest_grp)
-
