@@ -1,10 +1,18 @@
+install.packages("dplyr")
 library(dplyr)
+install.packages("stringr")
 library(stringr)
-library(gdata)
+#install.packages("gdata")
+#library(gdata)
+install.packages("tidyr")
 library(tidyr)
+
 # Load the data
 companies <- read.delim("companies.txt", header =  TRUE , stringsAsFactors = FALSE)
 rounds2 <- read.csv("rounds2.csv", header = TRUE, stringsAsFactors = FALSE)
+#load the mapping file
+mapping <- read.csv("mapping.csv", header =  TRUE, stringsAsFactors = FALSE)
+missing_mappings <- read.csv("mapping_missing_sectors.csv", header =  TRUE, stringsAsFactors = FALSE)
 
 #clean the permalink column
 companies <- mutate(companies, permalink1 = str_to_lower(companies$permalink))
@@ -45,9 +53,6 @@ top9 <- summarise(master_country_group, sum(raised_amount_usd))
 colnames(top9) <- c("Country_Code","Total_Sum")
 top9 <- head(arrange(top9, desc(Total_Sum)),9)
 
-#load the mapping file
-mapping <- read.csv("mapping.csv", header =  TRUE, stringsAsFactors = FALSE)
-
 #master_frame[] <- lapply(master_frame, as.character)
 
 #Primary Sector extract
@@ -77,21 +82,19 @@ mapping_long <- mapping_long[,-3]
 
 mapping_long_bkp <- mapping_long
 
-missing_mappings <- read.xlsx("C:\\Users\\navma\\Desktop\\Naveen\\IIIT-B\\Course1 - Introduction to Data Management\\Case Study\\Mapping missing sectors.xlsx", 1)
-
 mapping_long <- rbind(mapping_long,missing_mappings)
 
 
 #merge the mapping and master frame on primary sector
-final_master <- merge(master_frame, mapping_long, by.x = "primary_sector", by.y = "category_list", all.x = TRUE)
-#final_master$raised_amount_usd <- as.numeric(final_master$raised_amount_usd)
+final_master <- merge(master_frame, mapping_long, by.x = "primary_sector", by.y = "category_list")
+
 #Creating the data frames each of the 3 countries
 
 india_investment <- filter(final_master, country_code == "IND", funding_round_type == "venture")
 usa_investment <- filter(final_master, country_code == "USA", funding_round_type == "venture")
 gbr_investment <- filter(final_master, country_code == "GBR", funding_round_type == "venture")
 
-
+#create data frames with groupings on main sector
 group_main_sector <- function(p)
 {
   sector_group <- group_by(p, main_sector)
@@ -102,7 +105,8 @@ usa_invest_grp <- group_main_sector(usa_investment)
 gbr_invest_grp <- group_main_sector(gbr_investment)
 
 
-
+# Summarises the main sectors with Avg raised amount, number of investments
+# Also selects the main sectors where investments are between 5 and 15 million
 avg_raised_amt <- function(p)
 {
    country_main_sector <- summarise(p, mean(raised_amount_usd), n())
@@ -111,6 +115,7 @@ avg_raised_amt <- function(p)
    return(country_main_sector)
 }
 
+# calling the avg_raised_amt function 
 india_main_sector <- avg_raised_amt(india_invest_grp)
 usa_main_sector <- avg_raised_amt(usa_invest_grp)
 gbr_main_sector <- avg_raised_amt(gbr_invest_grp)
