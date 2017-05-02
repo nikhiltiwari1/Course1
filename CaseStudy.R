@@ -1,94 +1,88 @@
-install.packages("dplyr")
-library(dplyr)
-install.packages("stringr")
-library(stringr)
-#install.packages("gdata")
-#library(gdata)
-install.packages("tidyr")
-library(tidyr)
+requiredPackages = c('dplyr','stringr','tidyr')
+for(p in requiredPackages){
+  if(!require(p,character.only = TRUE)){ 
+    install.packages(p)
+  }
+    library(p,character.only = TRUE)
+}
 
-# Load the data
+# Load the data from companies and rounds2 file.
 companies <- read.delim("companies.txt", header =  TRUE , stringsAsFactors = FALSE)
 rounds2 <- read.csv("rounds2.csv", header = TRUE, stringsAsFactors = FALSE)
-#load the mapping file
+
+#load the mapping file and the missing mappings, mapping_missing_sectors is a CSV
+# file that contains the mappings of the missing primary sectors from the mappings file provided.
 mapping <- read.csv("mapping.csv", header =  TRUE, stringsAsFactors = FALSE)
 missing_mappings <- read.csv("mapping_missing_sectors.csv", header =  TRUE, stringsAsFactors = FALSE)
 
-#clean the permalink column
+#clean(convert to lower case) the permalink column in companies and rounds2 dataframe
 companies <- mutate(companies, permalink1 = str_to_lower(companies$permalink))
 companies <- companies[,-1]
 
 rounds2 <- mutate(rounds2, permalink1 = str_to_lower(rounds2$company_permalink))
 rounds2 <- rounds2[,-1]
 
-# Find the distinct values
+# Find the distinct number of companies, permalink1 is the unique identifier for the company
 n_distinct(companies$permalink1)
 n_distinct(rounds2$permalink1)
 
-
 # Are there any companies in the rounds2 file which are not present in companies? 
 setdiff(rounds2$permalink1, companies$permalink1)
-
-
 
 #merge companies and rounds2
 master_frame <- inner_join(companies, rounds2, by = "permalink1")
 #master_frame_left <- left_join(companies, rounds2, by = "permalink1")
 
-# checking the number of NA values
+# checking the number of NA values in the column "raised_amount_usd" of master_frame
 sum(is.na(master_frame$raised_amount_usd))
 
 #replacing NA values with numeric 0
 master_frame$raised_amount_usd[is.na(master_frame$raised_amount_usd)] <- 0
 
-
-#Grouping on Fund type 
+#Grouping on Fund type, and calculating mean(raised_amount_type) 
 master_fund_group <- group_by(master_frame, funding_round_type)
 fund_investment <- summarise(master_fund_group, mean(raised_amount_usd))
 colnames(fund_investment) <- c("fund_type", "avg_raised_amt")
 
-#group by country for Venture
+#Group by country, and calculating mean(raised_amount_type) for Venture funding type.
 master_country_group <- filter(group_by(master_frame, country_code), funding_round_type == "venture")
 top9 <- summarise(master_country_group, sum(raised_amount_usd))
 colnames(top9) <- c("Country_Code","Total_Sum")
 top9 <- head(arrange(top9, desc(Total_Sum)),9)
 
-#master_frame[] <- lapply(master_frame, as.character)
-
-#Primary Sector extract
+#Primary Sector extract from category_list column
 primary_sector_list <- str_split(master_frame$category_list, pattern="\\|")
 primary_sector <- sapply(primary_sector_list, function(x) x[1][1])
 master_frame[,"primary_sector"] <- primary_sector
 
-#master_frame$primary_sector[is.na(master_frame$primary_sector)] <- master_frame$category_list[is.na(master_frame$primary_sector)]
-
-#Take a backup of the master frame
+#Take a backup of the mapping data frame
 mapping_bkp <- mapping
-#Backup of the master frame
+#Take a backup of the master_frame
 master_frame_bkp <- master_frame
 
-# 0 -> na
+# replace "0" with "na" and "2.na" with "2.0" one after another
 mapping$category_list <- gsub("0", "na",mapping$category_list)
 mapping$category_list <- gsub("2.na", "2.0", mapping$category_list)
 
-#to_lower
+#Converting the primary_sector and category_list columns to lowercase
 master_frame$primary_sector <- str_to_lower(master_frame$primary_sector)
 mapping$category_list <- str_to_lower(mapping$category_list)
 
-#Wide to long
+#Wide to long conversion of the mapping dataframe
 mapping_long <- gather(mapping, main_sector, nval, 2:10)
 mapping_long <- mapping_long[!(mapping_long$nval == 0), ]
 mapping_long <- mapping_long[,-3]
 
+#Take backup of the mapping_long dataframe
 mapping_long_bkp <- mapping_long
 
+#Combine the original mappings file with the missing_mapping file
 mapping_long <- rbind(mapping_long,missing_mappings)
 
-
-#merge the mapping and master frame on primary sector
+#merge the mapping_long and master_frame on primary sector
 final_master <- merge(master_frame, mapping_long, by.x = "primary_sector", by.y = "category_list")
 
-#Creating the data frames each of the 3 countries
+#Creating the data frames for the 3 favourable english speaking countries and FT = venture
 
 india_investment <- filter(final_master, country_code == "IND", funding_round_type == "venture")
 usa_investment <- filter(final_master, country_code == "USA", funding_round_type == "venture")
