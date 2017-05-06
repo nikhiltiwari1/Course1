@@ -6,6 +6,22 @@ for(p in requiredPackages){
     library(p,character.only = TRUE)
 }
 
+# creating and setting working directory
+dir.create("Upgrade_case")
+setwd("upgrade_case")
+
+# downlaoding project data sets and other files
+myurl1 <- "https://cdn.upgrad.com/UpGrad/temp/d934844e-5182-4b58-b896-4ba2a499aa57/companies.txt"
+myurl2 <- "https://cdn.upgrad.com/UpGrad/temp/4c3b5ed0-e5dc-4838-89a2-173d8707d857/rounds2.csv"
+myurl3 <- "https://cdn.upgrad.com/UpGrad/temp/231dc91c-0642-470d-a362-29ddcd7142ce/mapping.csv"
+myurl4 <- "https://cdn.upgrad.com/UpGrad/temp/4201978b-5ec1-4138-84aa-767bc385e6d7/investments.xlsx"
+myurl5 <- "https://cdn.upgrad.com/UpGrad/temp/3bc93ac6-4c95-4a6a-8b23-17e1b8e055c1/Spark%20Funds%20Presentation.pptx"
+download.file(myurl1, destfile="./companies.txt", method="curl")
+download.file(myurl2, destfile="./rounds2.csv", method="curl")
+download.file(myurl3, destfile="./mapping.csv", method="curl")
+download.file(myurl4, destfile="./investments.xlsx", method="curl")
+download.file(myurl5, destfile="./Spark Funds Presentation.pptx", method="curl")
+
 # Load the data from companies and rounds2 file.
 companies <- read.delim("companies.txt", header =  TRUE , stringsAsFactors = FALSE)
 rounds2 <- read.csv("rounds2.csv", header = TRUE, stringsAsFactors = FALSE)
@@ -113,3 +129,7 @@ avg_raised_amt <- function(p)
 india_main_sector <- avg_raised_amt(india_invest_grp)
 usa_main_sector <- avg_raised_amt(usa_invest_grp)
 gbr_main_sector <- avg_raised_amt(gbr_invest_grp)
+
+# final output
+write.csv(final_master,"final_master.csv") 
+                         
